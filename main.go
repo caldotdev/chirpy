@@ -43,16 +43,32 @@ func main() {
 	mux := http.NewServeMux()
 	fileServerHandler := http.StripPrefix("/app/", http.FileServer(http.Dir(".")))
 	mux.Handle("/app/", metrics.metricsMiddleware(fileServerHandler))
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset+utf-8")
+	mux.HandleFunc("/admin/metrics", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset+utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(metrics.printFileserverHits()))
+		response := fmt.Sprintf(`<html>
+					<body>
+						<h1>Welcome, Chirpy Admin</h1>
+						<p>Chirpy has been visited %d times!</p>
+					</body>
+				</html>
+		`, metrics.fileserverHits)
+		w.Write([]byte(response))
 	})
-	mux.HandleFunc("/reset", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/reset", func(w http.ResponseWriter, r *http.Request) {
 		metrics.resetFileserverHits()
 		w.WriteHeader(http.StatusOK)
 	})
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/healthz", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
