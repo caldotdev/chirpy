@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -22,6 +23,70 @@ func (cfg *apiConfig) printFileserverHits() string {
 
 func (cfg *apiConfig) resetFileserverHits() {
 	cfg.fileserverHits = 0
+}
+
+func validateChirpHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	type parameters struct {
+		Body string `json:"body"`
+	}
+
+	type returnSuccess struct {
+		Valid bool `json:"valid"`
+	}
+
+	type returnError struct {
+		Error string `json:"error"`
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		respBody := returnError{
+			Error: "Something went wrong",
+		}
+		dat, err := json.Marshal(respBody)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(dat)
+		return
+	}
+
+	if len(params.Body) > 140 {
+		w.WriteHeader(http.StatusBadRequest)
+		respBody := returnError{
+			Error: "Chirp is too long",
+		}
+		dat, err := json.Marshal(respBody)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(dat)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	respBody := returnSuccess{
+		Valid: true,
+	}
+	dat, err := json.Marshal(respBody)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Write(dat)
+	return
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -73,6 +138,8 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
+
+	mux.HandleFunc("/api/validate_chirp", validateChirpHandler)
 
 	corsMux := corsMiddleware(mux)
 
